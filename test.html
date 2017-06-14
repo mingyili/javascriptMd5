@@ -1,0 +1,127 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>顺序文件加载</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<style>
+    body { max-width: 750px; margin: 0 auto; padding: 0; font-family: 'Lucida Grande', 'Lucida Sans Unicode', Arial, sans-serif;font-size: 14px; line-height: 1.5; background-color: #222; color: #fff;}
+    table {width: 100%;}
+    table th { background-color: #eee; }
+    table td { padding: 5px 10px; }
+    h1 {line-height: 1em;}
+    .success { color: green;}
+    .error { color: red;}
+    .error-cont { color: red; padding: 15px; }
+</style>
+<body>
+<div id="errMsg"></div>
+<script src="js/jquery-3.2.1.min.js"></script>
+<script src="js/md5.min.js"></script>
+<script>
+
+    var errorCont = document.getElementById('errMsg');
+    function consoleMsg(msg) {
+        var node = document.createElement("div");
+        node.innerHTML = msg;
+        errorCont.appendChild(node);
+    }
+
+    window.errorsCatched = [];
+    window.onerror = function(errMsg, scriptURI, lineNumber, columnNumber, errorObj) {
+        window.errorsCatched.push(scriptURI);
+        consoleMsg('<b class="error">存在的代码执行错误</b><p>' +
+            '错误信息：' + errMsg + '<br>' +
+            '出错文件：' + scriptURI + '<br>' +
+            '出错行号：' + lineNumber + '<br>' +
+            '出错列号：' + columnNumber + '<br></p>');
+    };
+
+
+    function md5Test(file) {
+        $.ajax({
+            type: 'GET',
+            url: file.url,
+            dataType: "text",
+            success: function(data) {
+                console.log(file.name, "加载完成", md5(data));
+
+                if (md5(data) == file.md5) consoleMsg('<p class="success">' + file.name + '文件md5比对成功！</p>');
+                else consoleMsg('<p class="error">' + file.name + '文件md5比对失败！</p>');
+            },
+            error: function() {
+                consoleMsg('<p class="error">' + file.name + '文件加载失败！</p>');
+            }
+        });
+    }
+
+    // 要验证的字符串
+    var files = [
+        {
+            url: 'http://pirate-h5v1.hortor002.com/pirate/merged.js?v=1.0.13',
+            md5: '6ab1c447eeba571e26141b6079f55fd4',
+            backup: {
+                url: 'http://pirate-h5v2.hortor002.com/pirate/merged.js?v=1.0.13',
+                md5: '6ab1c447eeba571e26141b6079f55fd4',
+            }
+        }, {
+            url: 'http://pirate-h5v1.hortor002.com/pirate/main.min.js?v=1.9.17',
+            md5: 'e5e6d0ef06c0fc11266bb63fe642534e',
+            backup: {
+                url: 'http://pirate-h5v2.hortor002.com/pirate/main.min.js?v=1.9.17',
+                md5: 'e5e6d0ef06c0fc11266bb63fe642534e',
+            }
+        }, {
+            md5: '7cba1daae8b93ac39b2486893dae9827',
+            url: 'http://h5.hortorgames.com/sdk/sdk_agent.min.js?v=1.1.3',
+        }
+    ];
+
+    var loadIndex = 0;
+    function loadScript(file) {
+        if (!file) return;
+        if (!file.name) file.name = file.url.split('/').pop();
+        consoleMsg('<p>开始加载：' + file.url + '</p>');
+
+        var _doc = document.getElementsByTagName("head")[0],
+            script = document.createElement("script");
+        script.type = "text/javascript";
+        script.setAttribute('crossorigin', '');
+
+        script.onload = function (e, v) {
+            console.log('errorsCatched：', errorsCatched);
+            if (errorsCatched.length) consoleMsg('<p class="error">出错的文件路径：' + errorsCatched.join('<br/>') + '</p>');
+
+            if (window.errorsCatched.indexOf(file.url) != -1) {
+                script.parentNode.removeChild(script);
+                consoleMsg('<p class="error">' + file.name + '执行报错！移除</p>');
+                if (file.backup) {
+                    consoleMsg('<p class="error">开始加载' + file.name + '备用文件</p>');
+                    setTimeout(loadScript.bind('', file.backup), 1000);
+                }
+            } else {
+                consoleMsg('<p class="success">' + file.name + '加载成功！</p>');
+                md5Test(file);
+                loadIndex++;
+                loadScript(files[loadIndex]);
+            }
+        };
+
+        script.onerror = function () {
+            script.parentNode.removeChild(script);
+            consoleMsg('<p class="error">' + file.name + ' 加载失败！移除</p>');
+            if (file.backup) {
+                consoleMsg('<p class="error">开始加载' + file.name + '备用文件</p>');
+                setTimeout(loadScript.bind('', file.backup), 1000);
+            }
+        };
+
+        script.src = file.url;
+        _doc.appendChild(script);
+    }
+
+    loadScript(files[loadIndex]);
+</script>
+</body>
+</html>

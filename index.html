@@ -1,0 +1,182 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>文件加载 MD5 验证</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<style>
+    body { max-width: 750px; margin: 0 auto; padding: 0; font-family: 'Lucida Grande', 'Lucida Sans Unicode', Arial, sans-serif;font-size: 14px; line-height: 1.5; background: #222; color: #fff; }
+    table {width: 100%;}
+    table th { background-color: #eee; }
+    table td { padding: 5px 10px; }
+    h1 {line-height: 1em;}
+    .success { color: green;}
+    .error { color: red;}
+    .error-cont { color: red; padding: 15px; }
+</style>
+<body>
+    <div></div>
+    <table id="result">
+        <tr>
+            <td width="50">文件名</td>
+            <td width="50">类型</td>
+            <td width="100">对比结果</td>
+            <td width="100">执行结果</td>
+        </tr>
+    </table>
+    <div style="padding: 10px 15px;">
+        <p>userAgent:</p>
+        <div class="userAgent"></div>
+    </div>
+    <div class="error-cont" id="errorMsg"></div>
+
+    <script src="js/jquery-3.2.1.min.js"></script>
+    <script src="js/md5.min.js"></script>
+    <script>
+    (function ($) {
+        var $result = $('#result');
+
+        // md5是否成功 flag true 为成功，false 为失败
+        function IsMd5Success(file, flag) {
+            if (flag) file.$md5.html('<b class="success">OK</b>');
+            else file.$md5.html('<b class="error">Error</b>')
+        }
+        // 加载失败后处理
+        function loadError(file, msg) {
+            msg = msg || '获取失败';
+            file.$md5.html('<b class="error">' + msg + '</b>');
+            file.$eve.html('<b class="error">' + msg + '</b>');
+        }
+        // 用script标签加载
+        function scriptLoad(file) {
+            var _doc = document.getElementsByTagName('head')[0],
+                js = document.createElement('script');
+            js.setAttribute('type', 'text/javascript');
+            js.setAttribute('src', file.url);
+            _doc.appendChild(js);
+
+            // 加载成功
+            js.onload = function() {
+                console.log(file.name, "加载完成");
+                IsMd5Success(file, true);
+                if (wx) file.$eve.html('<b class="success">OK</b>');
+                else file.$eve.html('<b class="error">wx undefined</b>');
+            };
+            js.onerror = loadError.bind('', file, '');
+        }
+        //
+        function writeScript(file) {
+            document.write('<script type="text/javascript" src="' + file.url + '" ><\/script>');
+        }
+        // 执行代码池和执行代码顺序
+        var evalPoo = {},
+            evalOrder = [];
+        // 执行代码池
+        function evalAll() {
+            // 全部加载后按顺序执行
+            var allLoad = evalOrder.every(function(e) {
+                if (evalPoo[e]) return true;
+                else return false;
+            });
+            if (!allLoad) return false;
+            // 用 for 循环是为了变量在同一作用域，可以被调用
+            for (var i = 0; i < evalOrder.length; i++) {
+                console.log('执行文件', evalOrder[i]);
+                var file = evalPoo[evalOrder[i]];
+                if (file.data) {
+                    try {
+                        eval(file.data);
+                        file.$eve.html('<b class="success">OK</b>');
+                    } catch(e) {
+                        console.log(e);
+                        file.$eve.html('<b class="error">' + e.message + '</b>');
+                    }
+                }
+            }
+        }
+
+        // 处理单个验证
+        function validataFail(file) {
+            if (!file.name) {
+                var filename = file.url.split('/').pop().split('?v=');
+                file.name = filename[0];
+                file.verison = filename[1] || '';
+                file.type = file.name.split('.').pop();
+            }
+
+            var $html = $('<tr>' +
+                '<td>' + file.name + '<br/>' + file.verison + '</td>' +
+                '<td>' + file.type + '</td>' +
+                '<td id="md5">监测中...</td>' +
+                '<td id="eve">监测中...</td>' +
+                '</tr>');
+            $result.append($html);
+
+            file.$md5 = $html.find('#md5');
+            file.$eve = $html.find('#eve');
+
+            // if (file.type == "js") return writeScript(file);
+            // if (file.type == "js") return scriptLoad(file);
+            if (file.name.indexOf('jweixin') > -1) return scriptLoad(file);
+            if (file.type === 'js') evalOrder.push(file.name);
+
+            $.ajax({
+                type: 'GET',
+                url: file.url,
+                dataType: "text",
+                complete: function() {
+                    // 执行 js
+                    if (file.type === 'js') {
+                        evalPoo[file.name] = file;
+                        evalAll();
+                    }
+                },
+                success: function(data) {
+                    file.data = data;
+                    var fileMd5 = md5(file.data);
+                    console.log(file.name, "加载完成", fileMd5);
+                    IsMd5Success(file, fileMd5 == file.md5);
+                    if (file.type !== 'js') file.$eve.html('<b>---</b>');
+                },
+                error: function() {
+                    console.log(file.name, "加载失败");
+                    loadError(file);
+                }
+            });
+        }
+
+        // userAgent
+        $('.userAgent').html(navigator.userAgent);
+
+        // 要验证的字符串
+        var files = [
+            {
+                md5: 'bcedfd044602b6a2f6be7d7b096c302c',
+                url: 'http://res.wx.qq.com/open/js/jweixin-1.0.0.js',
+            }, {
+                md5: '895323ed2f7258af4fae2c738c8aea49',
+                url: 'http://pirate-h5v1.hortor002.com/pirate/jquery.min.js?v=1.0.2',
+            }, {
+                md5: '6ab1c447eeba571e26141b6079f55fd4',
+                url: 'http://pirate-h5v1.hortor002.com/pirate/merged.js?v=1.0.13',
+            }, {
+                md5: 'e5e6d0ef06c0fc11266bb63fe642534e',
+                url: 'http://pirate-h5v1.hortor002.com/pirate/main.min.js?v=1.9.17',
+            }, {
+                md5: '8d388d5a977555cab63422882c3aa8b9',
+                url: 'http://pirate-h5v1.hortor002.com/pirate/resource/default.res.json?v=1.9.97',
+            }, {
+                md5: '08a56103539d811ca2263faa1ecdcc3c',
+                url: 'http://pirate-h5v1.hortor002.com/pirate/resource/default.thm.json?v=1.9.97',
+            }, {
+                md5: '7cba1daae8b93ac39b2486893dae9827',
+                url: 'http://h5.hortorgames.com/sdk/sdk_agent.min.js?v=1.1.3',
+            }
+        ];
+        // 开始验证
+        files.map(validataFail.bind(''));
+    })($);
+    </script>
+</body>
+</html>

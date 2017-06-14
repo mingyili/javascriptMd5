@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <title>顺序文件加载</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
+<script src="js/jquery-3.2.1.min.js"></script>
+<script src="js/md5.min.js"></script>
 <style>
     body { max-width: 750px; margin: 0 auto; padding: 0; font-family: 'Lucida Grande', 'Lucida Sans Unicode', Arial, sans-serif;font-size: 14px; line-height: 1.5; background-color: #222; color: #fff;}
     table {width: 100%;}
@@ -15,12 +16,11 @@
     .error { color: red;}
     .error-cont { color: red; padding: 15px; }
 </style>
+</head>
 <body>
 <div id="errMsg"></div>
-<script src="js/jquery-3.2.1.min.js"></script>
-<script src="js/md5.min.js"></script>
 <script>
-
+    var md5Test = md5;
     var errorCont = document.getElementById('errMsg');
     function consoleMsg(msg) {
         var node = document.createElement("div");
@@ -38,16 +38,15 @@
             '出错列号：' + columnNumber + '<br></p>');
     };
 
-
-    function md5Test(file) {
+    function fileMd5Test(file) {
         $.ajax({
             type: 'GET',
             url: file.url,
             dataType: "text",
             success: function(data) {
-                console.log(file.name, "加载完成", md5(data));
+                console.log(file.name, "加载完成", md5Test(data));
 
-                if (md5(data) == file.md5) consoleMsg('<p class="success">' + file.name + '文件md5比对成功！</p>');
+                if (md5Test(data) == file.md5) consoleMsg('<p class="success">' + file.name + '文件md5比对成功！</p>');
                 else consoleMsg('<p class="error">' + file.name + '文件md5比对失败！</p>');
             },
             error: function() {
@@ -102,7 +101,6 @@
                 }
             } else {
                 consoleMsg('<p class="success">' + file.name + '加载成功！</p>');
-                md5Test(file);
                 loadIndex++;
                 loadScript(files[loadIndex]);
             }
@@ -119,6 +117,7 @@
 
         script.src = file.url;
         _doc.appendChild(script);
+        fileMd5Test(file);
     }
 
     loadScript(files[loadIndex]);
